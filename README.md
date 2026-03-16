@@ -11,9 +11,9 @@
 
 ## What is this?
 
-This repository provides a production-ready `docker-compose.yaml` designed to deploy **Frappe Framework** apps (ERPNext, HRMS, etc.) via **Coolify** using Docker Swarm mode replica toggles.
+This repository provides a `docker-compose.yaml` designed to deploy **Frappe Framework** apps (ERPNext, HRMS, etc.) via **Coolify** using Docker Swarm mode replica toggles.
 
-Coolify uses `deploy.replicas` to start/stop one-shot services (like site creation and migration) without modifying the compose file — this repo is built around that pattern.
+This is not meant for production. You are solely responsible for data losses, and any damages occurred due to using this repository.
 
 ### Included services
 
