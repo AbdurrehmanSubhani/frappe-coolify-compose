@@ -1,18 +1,15 @@
-x-custom-image:
-  image: '${IMAGE_NAME:-ghcr.io/frappe/hrms}:${VERSION:-version-15}'
-  pull_policy: '${PULL_POLICY:-always}'
+x-custom-image: &custom_image
+  image: ${IMAGE_NAME:-ghcr.io/frappe/hrms}:${VERSION:-version-15}
+  pull_policy: ${PULL_POLICY:-always}
   deploy:
     restart_policy:
       condition: always
+
 services:
   backend:
-    image: '${IMAGE_NAME:-ghcr.io/frappe/hrms}:${VERSION:-version-15}'
-    pull_policy: '${PULL_POLICY:-always}'
-    deploy:
-      restart_policy:
-        condition: always
+    <<: *custom_image
     volumes:
-      - 'sites:/home/frappe/frappe-bench/sites'
+      - sites:/home/frappe/frappe-bench/sites
     networks:
       - bench-network
     healthcheck:
@@ -23,12 +20,9 @@ services:
       interval: 2s
       timeout: 10s
       retries: 30
+
   frontend:
-    image: '${IMAGE_NAME:-ghcr.io/frappe/hrms}:${VERSION:-version-15}'
-    pull_policy: '${PULL_POLICY:-always}'
-    deploy:
-      restart_policy:
-        condition: always
+    <<: *custom_image
     command:
       - nginx-entrypoint.sh
     depends_on:
@@ -39,16 +33,18 @@ services:
         condition: service_started
         required: true
     environment:
-      SERVICE_FQDN_FRONTEND_8080: '${SERVICE_FQDN_FRONTEND_8080}'
-      BACKEND: 'backend:8000'
-      FRAPPE_SITE_NAME_HEADER: '${FRAPPE_SITE_NAME_HEADER:-$$host}'
-      SOCKETIO: 'websocket:9000'
+      BACKEND: backend:8000
+      FRAPPE_SITE_NAME_HEADER: ${FRAPPE_SITE_NAME_HEADER:-$$host}
+      SOCKETIO: websocket:9000
+      UPSTREAM_REAL_IP_ADDRESS: 127.0.0.1
       UPSTREAM_REAL_IP_HEADER: X-Forwarded-For
-      UPSTREAM_REAL_IP_RECURSIVE: 'off'
+      UPSTREAM_REAL_IP_RECURSIVE: "off"
     volumes:
-      - 'sites:/home/frappe/frappe-bench/sites'
+      - sites:/home/frappe/frappe-bench/sites
+
     networks:
       - bench-network
+
     healthcheck:
       test:
         - CMD
@@ -57,19 +53,16 @@ services:
       interval: 2s
       timeout: 30s
       retries: 30
+
   queue-default:
-    image: '${IMAGE_NAME:-ghcr.io/frappe/hrms}:${VERSION:-version-15}'
-    pull_policy: '${PULL_POLICY:-always}'
-    deploy:
-      restart_policy:
-        condition: always
+    <<: *custom_image
     command:
       - bench
       - worker
-      - '--queue'
+      - --queue
       - default
     volumes:
-      - 'sites:/home/frappe/frappe-bench/sites'
+      - sites:/home/frappe/frappe-bench/sites
     networks:
       - bench-network
     healthcheck:
@@ -84,19 +77,16 @@ services:
       configurator:
         condition: service_completed_successfully
         required: true
+
   queue-long:
-    image: '${IMAGE_NAME:-ghcr.io/frappe/hrms}:${VERSION:-version-15}'
-    pull_policy: '${PULL_POLICY:-always}'
-    deploy:
-      restart_policy:
-        condition: always
+    <<: *custom_image
     command:
       - bench
       - worker
-      - '--queue'
+      - --queue
       - long
     volumes:
-      - 'sites:/home/frappe/frappe-bench/sites'
+      - sites:/home/frappe/frappe-bench/sites
     networks:
       - bench-network
     healthcheck:
@@ -111,19 +101,16 @@ services:
       configurator:
         condition: service_completed_successfully
         required: true
+
   queue-short:
-    image: '${IMAGE_NAME:-ghcr.io/frappe/hrms}:${VERSION:-version-15}'
-    pull_policy: '${PULL_POLICY:-always}'
-    deploy:
-      restart_policy:
-        condition: always
+    <<: *custom_image
     command:
       - bench
       - worker
-      - '--queue'
+      - --queue
       - short
     volumes:
-      - 'sites:/home/frappe/frappe-bench/sites'
+      - sites:/home/frappe/frappe-bench/sites
     networks:
       - bench-network
     healthcheck:
@@ -138,12 +125,9 @@ services:
       configurator:
         condition: service_completed_successfully
         required: true
+
   scheduler:
-    image: '${IMAGE_NAME:-ghcr.io/frappe/hrms}:${VERSION:-version-15}'
-    pull_policy: '${PULL_POLICY:-always}'
-    deploy:
-      restart_policy:
-        condition: always
+    <<: *custom_image
     healthcheck:
       test:
         - CMD
@@ -160,15 +144,12 @@ services:
         condition: service_completed_successfully
         required: true
     volumes:
-      - 'sites:/home/frappe/frappe-bench/sites'
+      - sites:/home/frappe/frappe-bench/sites
     networks:
       - bench-network
+
   websocket:
-    image: '${IMAGE_NAME:-ghcr.io/frappe/hrms}:${VERSION:-version-15}'
-    pull_policy: '${PULL_POLICY:-always}'
-    deploy:
-      restart_policy:
-        condition: always
+    <<: *custom_image
     healthcheck:
       test:
         - CMD
@@ -185,104 +166,132 @@ services:
         condition: service_completed_successfully
         required: true
     volumes:
-      - 'sites:/home/frappe/frappe-bench/sites'
+      - sites:/home/frappe/frappe-bench/sites
     networks:
       - bench-network
+
   configurator:
-    image: '${IMAGE_NAME:-ghcr.io/frappe/hrms}:${VERSION:-version-15}'
-    pull_policy: '${PULL_POLICY:-always}'
+    <<: *custom_image
     deploy:
       mode: replicated
-      replicas: '${CONFIGURE:-0}'
+      replicas: ${CONFIGURE:-0}
       restart_policy:
         condition: none
-    entrypoint:
-      - bash
-      - '-c'
+    entrypoint: ["bash", "-c"]
     command:
-      - "[[ $${REGENERATE_APPS_TXT} == \"1\" ]] && ls -1 apps > sites/apps.txt; [[ -n `grep -hs ^ sites/common_site_config.json | jq -r \".db_host // empty\"` ]] && exit 0; bench set-config -g db_host $$DB_HOST; bench set-config -gp db_port $$DB_PORT; bench set-config -g redis_cache \"redis://$$REDIS_CACHE\"; bench set-config -g redis_queue \"redis://$$REDIS_QUEUE\"; bench set-config -g redis_socketio \"redis://$$REDIS_QUEUE\"; bench set-config -gp socketio_port $$SOCKETIO_PORT;\n"
+      - >
+        [[ $${REGENERATE_APPS_TXT} == "1" ]] && ls -1 apps > sites/apps.txt;
+        [[ -n `grep -hs ^ sites/common_site_config.json | jq -r ".db_host // empty"` ]] && exit 0;
+        bench set-config -g db_host $$DB_HOST;
+        bench set-config -gp db_port $$DB_PORT;
+        bench set-config -g redis_cache "redis://$$REDIS_CACHE";
+        bench set-config -g redis_queue "redis://$$REDIS_QUEUE";
+        bench set-config -g redis_socketio "redis://$$REDIS_QUEUE";
+        bench set-config -gp socketio_port $$SOCKETIO_PORT;
     environment:
-      DB_HOST: '${DB_HOST:-db}'
-      DB_PORT: '3306'
-      REDIS_CACHE: 'redis-cache:6379'
-      REDIS_QUEUE: 'redis-queue:6379'
-      SOCKETIO_PORT: '9000'
-      REGENERATE_APPS_TXT: '${REGENERATE_APPS_TXT:-0}'
+      DB_HOST: "${DB_HOST:-db}"
+      DB_PORT: "3306"
+      REDIS_CACHE: redis-cache:6379
+      REDIS_QUEUE: redis-queue:6379
+      SOCKETIO_PORT: "9000"
+      REGENERATE_APPS_TXT: "${REGENERATE_APPS_TXT:-0}"
     volumes:
-      - 'sites:/home/frappe/frappe-bench/sites'
+      - sites:/home/frappe/frappe-bench/sites
     networks:
       - bench-network
+
   create-site:
-    image: '${IMAGE_NAME:-ghcr.io/frappe/hrms}:${VERSION:-version-15}'
-    pull_policy: '${PULL_POLICY:-always}'
+    <<: *custom_image
     deploy:
       mode: replicated
-      replicas: '${CREATE_SITE:-0}'
+      replicas: ${CREATE_SITE:-0}
       restart_policy:
         condition: none
-    entrypoint:
-      - bash
-      - '-c'
+    entrypoint: ["bash", "-c"]
     command:
-      - "wait-for-it -t 120 $$DB_HOST:$$DB_PORT; wait-for-it -t 120 redis-cache:6379; wait-for-it -t 120 redis-queue:6379; export start=`date +%s`; until [[ -n `grep -hs ^ sites/common_site_config.json | jq -r \".db_host // empty\"` ]] && \\\n  [[ -n `grep -hs ^ sites/common_site_config.json | jq -r \".redis_cache // empty\"` ]] && \\\n  [[ -n `grep -hs ^ sites/common_site_config.json | jq -r \".redis_queue // empty\"` ]];\ndo\n  echo \"Waiting for sites/common_site_config.json to be created\";\n  sleep 5;\n  if (( `date +%s`-start > 120 )); then\n    echo \"could not find sites/common_site_config.json with required keys\";\n    exit 1\n  fi\ndone; echo \"sites/common_site_config.json found\"; [[ -d \"sites/${SITE_NAME}\" ]] && echo \"${SITE_NAME} already exists\" && exit 0; bench new-site --mariadb-user-host-login-scope='%' --admin-password=$${ADMIN_PASSWORD} --db-root-username=root --db-root-password=$${DB_ROOT_PASSWORD} $${INSTALL_APP_ARGS} $${SITE_NAME};\n"
+      - >
+        wait-for-it -t 120 $$DB_HOST:$$DB_PORT;
+        wait-for-it -t 120 redis-cache:6379;
+        wait-for-it -t 120 redis-queue:6379;
+        export start=`date +%s`;
+        until [[ -n `grep -hs ^ sites/common_site_config.json | jq -r ".db_host // empty"` ]] && \
+          [[ -n `grep -hs ^ sites/common_site_config.json | jq -r ".redis_cache // empty"` ]] && \
+          [[ -n `grep -hs ^ sites/common_site_config.json | jq -r ".redis_queue // empty"` ]];
+        do
+          echo "Waiting for sites/common_site_config.json to be created";
+          sleep 5;
+          if (( `date +%s`-start > 120 )); then
+            echo "could not find sites/common_site_config.json with required keys";
+            exit 1
+          fi
+        done;
+        echo "sites/common_site_config.json found";
+        [[ -d "sites/${SITE_NAME}" ]] && echo "${SITE_NAME} already exists" && exit 0;
+        bench new-site --mariadb-user-host-login-scope='%' --admin-password=$${ADMIN_PASSWORD} --db-root-username=root --db-root-password=$${DB_ROOT_PASSWORD} $${INSTALL_APP_ARGS} $${SITE_NAME};
     volumes:
-      - 'sites:/home/frappe/frappe-bench/sites'
+      - sites:/home/frappe/frappe-bench/sites
     environment:
-      SITE_NAME: '${SITE_NAME}'
-      ADMIN_PASSWORD: '${ADMIN_PASSWORD}'
-      DB_HOST: '${DB_HOST:-db}'
-      DB_PORT: '${DB_PORT:-3306}'
-      DB_ROOT_PASSWORD: '${DB_ROOT_PASSWORD}'
-      INSTALL_APP_ARGS: '${INSTALL_APP_ARGS}'
+      SITE_NAME: ${SITE_NAME}
+      ADMIN_PASSWORD: ${ADMIN_PASSWORD}
+      DB_HOST: ${DB_HOST:-db}
+      DB_PORT: "${DB_PORT:-3306}"
+      DB_ROOT_PASSWORD: ${DB_ROOT_PASSWORD}
+      INSTALL_APP_ARGS: ${INSTALL_APP_ARGS}
     networks:
       - bench-network
+
   migration:
-    image: '${IMAGE_NAME:-ghcr.io/frappe/hrms}:${VERSION:-version-15}'
-    pull_policy: '${PULL_POLICY:-always}'
+    <<: *custom_image
     deploy:
       mode: replicated
-      replicas: '${MIGRATE:-0}'
+      replicas: ${MIGRATE:-0}
       restart_policy:
         condition: none
-    entrypoint:
-      - bash
-      - '-c'
+    entrypoint: ["bash", "-c"]
     command:
-      - "curl -f http://${SITE_NAME}:8080/api/method/ping || echo \"Site busy\" && exit 0; bench --site all set-config -p maintenance_mode 1; bench --site all set-config -p pause_scheduler 1; bench --site all migrate; bench --site all set-config -p maintenance_mode 0; bench --site all set-config -p pause_scheduler 0;\n"
+      - >
+        curl -f http://${SITE_NAME}:8080/api/method/ping || echo "Site busy" && exit 0;
+        bench --site all set-config -p maintenance_mode 1;
+        bench --site all set-config -p pause_scheduler 1;
+        bench --site all migrate;
+        bench --site all set-config -p maintenance_mode 0;
+        bench --site all set-config -p pause_scheduler 0;
     volumes:
-      - 'sites:/home/frappe/frappe-bench/sites'
+      - sites:/home/frappe/frappe-bench/sites
     networks:
       - bench-network
+
   db:
-    image: 'mariadb:10.6'
+    image: mariadb:10.6
     deploy:
       mode: replicated
-      replicas: '${ENABLE_DB:-0}'
+      replicas: ${ENABLE_DB:-0}
       restart_policy:
         condition: always
     healthcheck:
-      test: 'mysqladmin ping -h localhost --password=${DB_ROOT_PASSWORD}'
+      test: mysqladmin ping -h localhost --password=${DB_ROOT_PASSWORD}
       interval: 1s
       retries: 20
     command:
-      - '--character-set-server=utf8mb4'
-      - '--collation-server=utf8mb4_unicode_ci'
-      - '--skip-character-set-client-handshake'
-      - '--skip-innodb-read-only-compressed'
+      - --character-set-server=utf8mb4
+      - --collation-server=utf8mb4_unicode_ci
+      - --skip-character-set-client-handshake
+      - --skip-innodb-read-only-compressed
     environment:
-      - 'MYSQL_ROOT_PASSWORD=${DB_ROOT_PASSWORD}'
-      - 'MARIADB_ROOT_PASSWORD=${DB_ROOT_PASSWORD}'
+      - MYSQL_ROOT_PASSWORD=${DB_ROOT_PASSWORD}
+      - MARIADB_ROOT_PASSWORD=${DB_ROOT_PASSWORD}
     volumes:
-      - 'db-data:/var/lib/mysql'
+      - db-data:/var/lib/mysql
     networks:
       - bench-network
+
   redis-cache:
     deploy:
       restart_policy:
         condition: always
-    image: 'redis:6.2-alpine'
+    image: redis:6.2-alpine
     volumes:
-      - 'redis-cache-data:/data'
+      - redis-cache-data:/data
     networks:
       - bench-network
     healthcheck:
@@ -293,13 +302,14 @@ services:
       interval: 5s
       timeout: 5s
       retries: 3
+
   redis-queue:
     deploy:
       restart_policy:
         condition: always
-    image: 'redis:6.2-alpine'
+    image: redis:6.2-alpine
     volumes:
-      - 'redis-queue-data:/data'
+      - redis-queue-data:/data
     networks:
       - bench-network
     healthcheck:
@@ -310,13 +320,14 @@ services:
       interval: 5s
       timeout: 5s
       retries: 3
+
   redis-socketio:
     deploy:
       restart_policy:
         condition: always
-    image: 'redis:6.2-alpine'
+    image: redis:6.2-alpine
     volumes:
-      - 'redis-socketio-data:/data'
+      - redis-socketio-data:/data
     networks:
       - bench-network
     healthcheck:
@@ -327,15 +338,17 @@ services:
       interval: 5s
       timeout: 5s
       retries: 3
+
 volumes:
-  db-data: null
-  redis-cache-data: null
-  redis-queue-data: null
-  redis-socketio-data: null
+  db-data:
+  redis-cache-data:
+  redis-queue-data:
+  redis-socketio-data:
   sites:
     driver_opts:
-      type: '${SITE_VOLUME_TYPE}'
-      o: '${SITE_VOLUME_OPTS}'
-      device: '${SITE_VOLUME_DEV}'
+      type: "${SITE_VOLUME_TYPE}"
+      o: "${SITE_VOLUME_OPTS}"
+      device: "${SITE_VOLUME_DEV}"
+
 networks:
-  bench-network: null
+  bench-network:
